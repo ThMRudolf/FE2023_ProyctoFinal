@@ -87,26 +87,51 @@ de verosimilitudes para probar $H_0:p=p_0$ contra $H_0:p\ne p_0$.
 
 ```{r}
 N = 556
-p=c(9/16,3/16,3/16,1/16)
+p0=c(9/16,3/16,3/16,1/16)
 x=c(315,101,108,32)
-p0 = x/N
+p_hat = x/N
 
 log_verosim_4one <- function(p, n, N) {
-  p^n*(1-p)^(N-n)
+  n*log(p)+(N-n)*log(1-p)
 }
-log_verosim_multi <-function(p_vec, n_vec){
-  N = sum(n_vec)
-  log_verosim_multi <- 0
-  for (k in 1:length(p_vec)){
-    log_verosim_multi <- log_verosim_4one(p_vec[k],n_vec[k], N ) +
-      log_verosim_multi
-  }
-  return (log_verosim_multi)
-}
+#log_verosim_multi <-function(p_vec, n_vec){
+#  N = sum(n_vec)
+#  log_verosim_multi <- 0
+#  for (k in 1:length(p_vec)){
+#    log_verosim_multi <- log_verosim_4one(p_vec[k],n_vec[k], N ) +
+#      log_verosim_multi
+#  }
+#  return (log_verosim_multi)
+l_p1_hat <- log_verosim_4one(p_hat[1], x[1], sum(x))
+l_p10 <- log_verosim_4one(p0[1], x[1], sum(x))
 
-verosim_tbl <- tibble(p = p0) %>% 
-  mutate(log_verosim = log_verosim_multi(p0, x))
-verosim_tbl %>% gt()
+l_p2_hat <- log_verosim_4one(p_hat[2], x[2], sum(x))
+l_p20 <- log_verosim_4one(p0[2], x[2], sum(x))
+
+l_p3_hat <- log_verosim_4one(p_hat[3], x[3], sum(x))
+l_p30 <- log_verosim_4one(p0[3], x[3], sum(x))
+
+l_p4_hat <- log_verosim_4one(p_hat[4], x[4], sum(x))
+l_p40 <- log_verosim_4one(p0[4], x[4], sum(x))
+
+verosim_tbl <- tibble(p = seq(0.5, 0.6, 0.001)) %>% 
+  mutate(log_verosim = log_verosim_4one(p, x[1], sum(x)))
+g1 <- ggplot(verosim_tbl, aes(x = p, y = log_verosim)) +
+  geom_line() +
+    geom_segment(x = p_hat[1], xend = p_hat[1], y = -900, yend = l_p1_hat, colour = "red") +
+  geom_segment(x = p0[1], xend = p0[1], y = -900, yend = l_p10, colour = "gray") +
+  geom_errorbar(aes(x = p0[1],  ymin = l_p10, ymax = l_p1_hat), 
+               colour = "orange", width = 0.05) +
+  annotate("text", x = 0.48, y = -81.5, label = "3.79") +
+ annotate("text", x = 0.515, y = -91, label ="nula", colour = "gray20") +
+  annotate("text", x = 0.665, y = -91, label ="max verosímil", colour = "red") +
+  labs(subtitle = expression(paste(lambda, "=2(3.79)=7.58"))) 
+  
+  result_lambda <- tibble(lambda1 = 2*(l_p1_hat - l_p10), 
+                          lambda2 = 2*(l_p2_hat - l_p20),
+                          lambda3 = 2*(l_p3_hat - l_p30),
+                          lambda4 = 2*(l_p4_hat - l_p40))
+  result_lambda %>% gt()
 ```
 
 
