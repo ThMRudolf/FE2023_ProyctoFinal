@@ -26,6 +26,12 @@ Instrucciones:
 -   Consideren el material de visualización al hacer sus gráficas y
     reportar sus resultados.
 
+```{r}
+# activating libraries
+library(tidyverse)
+library(gt)
+```
+
 ## 1. Pruebas de hipótesis
 
 1.1 De acuerdo a una encuesta en EUA, 26% de los residentes adultos de
@@ -36,9 +42,33 @@ personas en la muestra han completado la preparatoria. Estos resultados
 soportan su hipótesis? (describe tu elección de prueba de hipótesis,
 valor p y conclusión).
 
-```{r}
+*Pruebe de Hipothesis: Definicion*
+H0: La proporcion en el condado es igual a la de la popalcion completa de Illenois.
 
+H1: La proporcion en el condado es menor a la de la popalcion completa de Illenois.
+
+Vamos a hacer una pruebe de Wald porque estmos comparando dos proporciones.
+```{r}
+# sample size
+N = 310
+# successes in %
+p_hat <- 69/310
+# % of succeses in complete population
+p0 <- 0.29
+# standard error
+ee_p0 <- sqrt(p0*(1-p0)/N)
+# Wald test
+W <- (p_hat-p0)/ee_p0
+# p value for one sided test
+p <- (1 - pnorm(abs(W)))
+result <- tibble(ssize = N, ee = ee_p0, 
+                 p0 = p0, 
+                 p_hat = p_hat,
+                 wald_test = W, 
+                 p_value = p) %>% gt()
+(result)
 ```
+*Respuesta*: el valor p es 0.004 lo que nos lleva a la conclucion que no hay suficiente prueba para la H0 y la suspecha del investigador es correcto.
 
 1.2 Mendel criaba chícharos de semillas lisas amarillas y de semillas
 corrugadas verdes. Éstas daban lugar a 4 tipos de descendientes:
