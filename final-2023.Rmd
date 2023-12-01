@@ -252,6 +252,79 @@ $Log(L(\sigma^2))=-\frac{n}{2}log(\sigma^2)-\frac{1}{2\sigma^2}\sum^n_{i=1}{(X_i
     paramétrico** y realiza un histograma de las replicaciones
     bootstrap.
 
+```{r}
+crear_log_sigma <- function(x){
+  log_p <- function(pars){
+    desv_est = pars[1]
+    # ve la ecuación del ejercicio anterior
+    z <- x / desv_est
+    log_verosim <- -(log(desv_est) +  0.5 * mean(z^2))
+    log_verosim
+  }  
+  log_p
+}
+load("data/x.RData")
+log_p <- crear_log_sigma(x)
+#optimize(verosim, c(-1000, 1000), maximum = TRUE)
+res <- optim(0.5, log_p,lower = 0.001, upper = 100, control = list(fnscale = -1, maxit = 1000), method = "Brent")
+res$convergence
+
+est_mle <- tibble(parameter= c( "estimated sigma", "sigma sample", "difd sigma"), 
+                  estimador = c( res$par, sd(x), res$par - sd(x))) %>% 
+  column_to_rownames(var = "parameter")
+est_mle
+n_sample <- length(x)
+sim_distr <- rnorm(n_sample, mean=0, sd=res$par)
+
+x_sample <- tibble(x = x) %>% mutate(dist = "sample")
+x_sample_opt_sigma <- tibble(x = sim_distr)%>% mutate(dist = "opt sigma")
+
+plot_data <- bind_rows(x_sample, x_sample_opt_sigma)
+ggplot(plot_data, aes(x = x, fill = dist)) +
+  geom_histogram(aes(x = x), bins = 10, alpha = 0.5, position = "identity")
+```
+
+Bootstrap Parametrico:
+
+```{r}
+
+simular_modelo <- function(n, sigma){
+  media = 0
+  rnorm(n, media, sigma)
+}
+muestra_bootstrap <- simular_modelo(n_sample, 
+                                    est_mle["sigma", "estimador"])
+head(muestra_bootstrap)
+
+# creamos nueva verosimilitud para muestra bootstrap
+log_p_boot <- crear_log_sigma(muestra_bootstrap)
+# optimizamos
+res_boot <- optim(100, log_p_boot, lower = 0.001, upper = 100,
+  control = list(fnscale = -1, maxit = 1000), method = "Brent")
+res_boot$convergence
+
+res_boot$par
+
+```
+
+```{r}
+rep_boot <- function(rep, crear_log_sigma, est_mle, n){
+  muestra_bootstrap <- simular_modelo(n, 
+                               est_mle["estimated sigma", "estimador"])
+  log_p_boot <- crear_log_sigma(muestra_bootstrap)
+  # optimizamos
+  res_boot <- optim(100, log_p_boot, lower = 0.001, upper = 100,
+  control = list(fnscale = -1, maxit = 1000), method = "Brent")
+  try(if(res_boot$convergence != 0) stop("No se alcanzó convergencia."))
+  tibble(parametro = c("sigma"), estimador_boot = res_boot$par) 
+}
+reps_boot <- map_dfr(1:5000, ~ rep_boot(.x, crear_log_sigma, est_mle, 
+                                        n = n_sample, rep = ".id")) 
+reps_boot
+```
+
+\
+\
 2.2 Análisis bayesiano
 
 -   Continuamos con el problema de hacer inferencia de $\sigma^2$.
