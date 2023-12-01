@@ -180,7 +180,7 @@ err_tipio_1_tbl <- tibble(err_tipo_1_mean = mean(p_values_err_tipo_1),
 (err_tipio_1_tbl)
 ```
 
-##  2. Relación entre bootstrap e inferencia bayesiana
+## 2. Relación entre bootstrap e inferencia bayesiana
 
 Consideremos el caso en que tenemos una única observación $x$
 proveniente de una distribución normal
@@ -232,6 +232,21 @@ $\sigma^2$.
     máxima verosimilitud para $\sigma^2$. Supongamos que observamos los
     datos `x` (en la carpeta datos), ¿Cuál es tu estimación de la
     varianza?
+
+$L(\sigma^2)=\prod^{n}_{i=1} \frac{1}{\sqrt{2\pi\sigma^2}} \exp^{\frac{-(X_i-\hat{X})^2}{2 \sigma^2}}$
+
+```         
+La función de log-versosimilitud se define de esta manera:
+```
+
+$Log(L(\sigma^2))=-\frac{n}{2}log(2\pi)-\frac{n}{2}log(\sigma^2)-\frac{1}{2\sigma^2}\sum^n_{i=1}{(X_1-\hat{X})^2}$
+
+Como estamos optimizando a travez de derivadas, podemo neglegar todos lo
+constantes, ya que la derivada de una constante es igual a cero.
+Adicionalmente sabemos que $\hat{X}$ es conocido y es igual a cero. De
+esa manera se simplifica la formula:
+
+$Log(L(\sigma^2))=-\frac{n}{2}log(\sigma^2)-\frac{1}{2\sigma^2}\sum^n_{i=1}{(X_i)^2}$
 
 -   Aproxima el error estándar de la estimación usando **bootstrap
     paramétrico** y realiza un histograma de las replicaciones
