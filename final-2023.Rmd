@@ -42,12 +42,15 @@ personas en la muestra han completado la preparatoria. Estos resultados
 soportan su hipótesis? (describe tu elección de prueba de hipótesis,
 valor p y conclusión).
 
-*Pruebe de Hipothesis: Definicion*
-H0: La proporcion en el condado es igual a la de la popalcion completa de Illenois.
+*Pruebe de Hipothesis: Definicion* H0: La proporcion en el condado es
+igual a la de la popalcion completa de Illenois.
 
-H1: La proporcion en el condado es menor a la de la popalcion completa de Illenois.
+H1: La proporcion en el condado es menor a la de la popalcion completa
+de Illenois.
 
-Vamos a hacer una pruebe de Wald porque estmos comparando dos proporciones.
+Vamos a hacer una pruebe de Wald porque estamos comparando dos
+proporciones.
+
 ```{r}
 # sample size
 N = 310
@@ -68,16 +71,44 @@ result <- tibble(ssize = N, ee = ee_p0,
                  p_value = p) %>% gt()
 (result)
 ```
-*Respuesta*: el valor p es 0.004 lo que nos lleva a la conclucion que no hay suficiente prueba para la H0 y la suspecha del investigador es correcto.
 
-1.2 Mendel criaba chícharos de semillas lisas amarillas y de semillas
-corrugadas verdes. Éstas daban lugar a 4 tipos de descendientes:
-amarrillas lisas, amarillas corrugadas, verdes lisas y verdes
-corrugadas. El número de cada una es multinomial con parámetro
+*Respuesta*: el valor p es 0.004 lo que nos lleva a la conclución que no
+hay suficiente prueba para la H0 y la suspecha del investigador es
+correcto.
+
+1.2 Mendel criaba chícharos de semillas lisas amarillas y de
+semillas corrugadas verdes. Éstas daban lugar a 4 tipos de
+descendientes: amarrillas lisas, amarillas corrugadas, verdes lisas y
+verdes corrugadas. El número de cada una es multinomial con parámetro
 $p=(p_1, p_2, p_3, p_4)$. De acuerdo a su teoría de herencia este vector
 de probabilidades es: $$p=(9/16,3/16,3/16,1/16)$$ A lo largo de $n=556$
 experimentos observó $x=(315,101,108,32)$. Utiliza la prueba de cociente
 de verosimilitudes para probar $H_0:p=p_0$ contra $H_0:p\ne p_0$.
+
+```{r}
+N = 556
+p=c(9/16,3/16,3/16,1/16)
+x=c(315,101,108,32)
+p0 = x/N
+
+log_verosim_4one <- function(p, n, N) {
+  p^n*(1-p)^(N-n)
+}
+log_verosim_multi <-function(p_vec, n_vec){
+  N = sum(n_vec)
+  log_verosim_multi <- 0
+  for (k in 1:length(p_vec)){
+    log_verosim_multi <- log_verosim_4one(p_vec[k],n_vec[k], N ) +
+      log_verosim_multi
+  }
+  return (log_verosim_multi)
+}
+
+verosim_tbl <- tibble(p = p0) %>% 
+  mutate(log_verosim = log_verosim_multi(p0, x))
+verosim_tbl %>% gt()
+```
+
 
 1.3. Sean $X_1, ...X_n \sim Poisson(\lambda)$,
 
