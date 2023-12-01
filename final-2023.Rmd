@@ -30,6 +30,7 @@ Instrucciones:
 # activating libraries
 library(tidyverse)
 library(gt)
+library(patchwork)
 ```
 
 ## 1. Pruebas de hipótesis
@@ -76,10 +77,10 @@ result <- tibble(ssize = N, ee = ee_p0,
 hay suficiente prueba para la H0 y la suspecha del investigador es
 correcto.
 
-1.2 Mendel criaba chícharos de semillas lisas amarillas y de
-semillas corrugadas verdes. Éstas daban lugar a 4 tipos de
-descendientes: amarrillas lisas, amarillas corrugadas, verdes lisas y
-verdes corrugadas. El número de cada una es multinomial con parámetro
+1.2 Mendel criaba chícharos de semillas lisas amarillas y de semillas
+corrugadas verdes. Éstas daban lugar a 4 tipos de descendientes:
+amarrillas lisas, amarillas corrugadas, verdes lisas y verdes
+corrugadas. El número de cada una es multinomial con parámetro
 $p=(p_1, p_2, p_3, p_4)$. De acuerdo a su teoría de herencia este vector
 de probabilidades es: $$p=(9/16,3/16,3/16,1/16)$$ A lo largo de $n=556$
 experimentos observó $x=(315,101,108,32)$. Utiliza la prueba de cociente
@@ -134,18 +135,52 @@ g1 <- ggplot(verosim_tbl, aes(x = p, y = log_verosim)) +
   result_lambda %>% gt()
 ```
 
-
 1.3. Sean $X_1, ...X_n \sim Poisson(\lambda)$,
 
 -   Sea $\lambda_0>0$. ¿Cuál es la prueba Wald para
     $H_0: \lambda = \lambda_0, H_1: \lambda \neq \lambda_0$
+
+$$
+W_{Poisson}=\frac {(\lambda -\lambda_0)} {\sqrt(\frac{\lambda} {n})}
+$$
 
 -   Si $\lambda_0=1$, $n=20$ y $\alpha = 0.05$. Simula
     $X_1, ...X_n \sim Poisson(\lambda_0)$ y realiza la prueba Wald,
     repite 1000 veces y registra el porcentaje de veces que rechazas
     $H_0$, qué tan cerca te queda el error del tipo 1 de $0.05$?
 
-## 2. Relación entre bootstrap e inferencia bayesiana
+```{r}
+set.seed(123)
+pois_rep <- function(lamb0, n){
+  p <- rpois(n, lambda = lamb0)
+  w <- (mean(p) - lamb0)/(sqrt(mean(p)/n))
+  return(w)
+}
+n_reps = 1000
+reps <- tibble(idx = 1:n_reps, w =map_dbl(1:n_reps, ~ pois_rep(1, 20))) 
+
+count = 0
+limit_p_value = 0.05
+count_idx = 0
+for(k in 1:length(reps$w)){
+  p_value[k] <- 2*min(1-pnorm(abs(reps$w[k])))
+  if(p_value[k]<limit_p_value){
+    count = count + 1
+    count_idx[count] = k
+    #cat("fount a true\n")
+    }
+}
+perc_err_tipio_1=count/n_reps
+(perc_err_tipio_1)
+p_values_err_tipo_1 <- p_value[count_idx[3:length(count_idx)]]
+err_tipio_1_tbl <- tibble(err_tipo_1_mean = mean(p_values_err_tipo_1),
+                          err_tipo_1_sd = sd(p_values_err_tipo_1), 
+                          err_tipo_1_median = median(p_values_err_tipo_1),
+                          perc_err_tipo_1 = perc_err_tipio_1) %>% gt()
+(err_tipio_1_tbl)
+```
+
+##  2. Relación entre bootstrap e inferencia bayesiana
 
 Consideremos el caso en que tenemos una única observación $x$
 proveniente de una distribución normal
