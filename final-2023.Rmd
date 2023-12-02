@@ -86,6 +86,8 @@ de probabilidades es: $$p=(9/16,3/16,3/16,1/16)$$ A lo largo de $n=556$
 experimentos observó $x=(315,101,108,32)$. Utiliza la prueba de cociente
 de verosimilitudes para probar $H_0:p=p_0$ contra $H_0:p\ne p_0$.
 
+1er paso: todo por separado: p1 con la prueba 1,etc.
+
 ```{r}
 N = 556
 p0=c(9/16,3/16,3/16,1/16)
@@ -134,6 +136,38 @@ g1 <- ggplot(verosim_tbl, aes(x = p, y = log_verosim)) +
                           lambda4 = 2*(l_p4_hat - l_p40))
   result_lambda %>% gt()
 ```
+
+ahora con multinominal:
+$P=\frac{n!}{x_1!x_2!x_3!x_4!}p_1^{x_1}p_2^{x_2}p_3^{x_3}p_4^{x_4}$
+
+ahora hacemos el log(P):
+$log(P)=log(\frac{n!}{x_1!x_2!x_3!x_4!})+x_1log(p_1)+x_2log(p_2)+x_3log(p_3)+x_4log(p_4)$
+
+la parte de $log(\frac{n!}{x_1!x_2!x_3!x_4!})$ no se necesita consider
+ya que es una constant en ambas $L$.
+
+```{r}
+log_verosim_multinominal <- function(p_vec, n_vec, n){
+ lvmulti <- n_vec[1]*log(p_vec[1])
+ if (n>1)
+ {
+   for (idx in 2:n)
+   {
+     lvmulti <- n_vec[idx]*log(p_vec[idx]) + lvmulti
+   }
+ }
+}
+lv_multi_hat <- x[1]*log(p_hat[1]) + x[2]*log(p_hat[2]) + 
+   x[3]*log(p_hat[3]) + x[4]*log(p_hat[4])
+ 
+lv_multi_0 <- x[1]*log(p0[1]) + x[2]*log(p0[2]) + 
+   x[3]*log(p_hat[3]) + x[4]*log(p0[4])
+ 
+lambda_multinominal <- 2*(lv_multi_hat - lv_multi_0)
+ result_lambda %>% mutate(lambda_mn =lambda_multinominal) %>% gt()
+```
+
+\
 
 1.3. Sean $X_1, ...X_n \sim Poisson(\lambda)$,
 
@@ -279,7 +313,7 @@ sim_distr <- rnorm(n_samples, mean=0, sd=res$par)
 x_sample <- tibble(x = x) %>% mutate(dist = "sample")
 x_sample_opt_sigma <- tibble(x = sim_distr)%>% mutate(dist = "opt sigma")
 
-plot_data <- bind_rows(x_samples, x_sample_opt_sigma)
+plot_data <- bind_rows(x_sample, x_sample_opt_sigma)
 ggplot(plot_data, aes(x = x, fill = dist)) +
   geom_histogram(aes(x = x), bins = 10, alpha = 0.5, position = "identity")
 ```
@@ -326,6 +360,8 @@ reps_boot <- map_dfr(1:5000, ~ rep_boot(.x,
 ggplot(reps_boot, aes(x= estimador_boot)) + 
   geom_histogram() +
   labs(title="results of parametric bootstrap for sigma")
+reps_boot_qq <- quantile(reps_boot$estimador_boot, c(0.025,0.5, 0.975))
+reps_boot_qq 
 ```
 
 \
@@ -338,23 +374,24 @@ ggplot(reps_boot, aes(x= estimador_boot)) +
     función de densidad.
 
 ```{r}
+set.seed(312)
 # inicial value for a, and b
-a <- 550
-b <- 50
-dist_inicial <- rgamma(n_samples, a, b)
+a <- 2
+b <- 100
+dist_inicial_tau <- rgamma(n_samples, a, b)
+sigma_init <- 1/sqrt(dist_inicial_tau)
 # graficar para buscar los valores de a y b
-g_dist_inicial <- ggplot(tibble(dist_inicial), aes(dist_inicial)) + geom_histogram()
-g_dist_inicial
-density_gamma <-tibble(x = 1:n_samples, p=dist_inicial)
+g_dist_inicial <- ggplot(tibble(sigma_init), aes(sigma_init)) + geom_histogram() + labs(title="histogram to find a and b\n as close as possible to \n the prametric bootstrap")
+density_gamma <-tibble(x = 1:n_samples, p=sigma_init)
 plot_g <- ggplot(density_gamma, aes(x=p)) + geom_density(fill = "skyblue", color= "black", alpha = 0.7)+
-  labs(title ="inicial pdf of selected inverse gamma distribution, a = 550, b=50")
-plot_g
+  labs(title ="inicial pdf of selected inverse \n gamma distribution,\n a = 2, b=100")
+g_dist_inicial + plot_g
 
 ```
 
 Con trial & error buscamos un valor que tiene un pico en un valor aprox
-de la 11 (bootstrap parametrico nos dio un valor de 11.69) y con una
-varianza no tan alta. Con eso llegamos a a = 550 y b = 50.
+de la 11 (bootstrap parametrico nos dio un valor de 11.4) y con una
+varianza no tan alta. Con eso llegamos a a=2 y b = 100.
 
 -   Calcula analíticamente la distribución posterior.
 
