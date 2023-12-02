@@ -273,13 +273,13 @@ est_mle <- tibble(parameter= c( "estimated sigma", "sigma sample", "difd sigma")
                   estimador = c( res$par, sd(x), res$par - sd(x))) %>% 
   column_to_rownames(var = "parameter")
 est_mle
-n_sample <- length(x)
-sim_distr <- rnorm(n_sample, mean=0, sd=res$par)
+n_samples <- length(x)
+sim_distr <- rnorm(n_samples, mean=0, sd=res$par)
 
 x_sample <- tibble(x = x) %>% mutate(dist = "sample")
 x_sample_opt_sigma <- tibble(x = sim_distr)%>% mutate(dist = "opt sigma")
 
-plot_data <- bind_rows(x_sample, x_sample_opt_sigma)
+plot_data <- bind_rows(x_samples, x_sample_opt_sigma)
 ggplot(plot_data, aes(x = x, fill = dist)) +
   geom_histogram(aes(x = x), bins = 10, alpha = 0.5, position = "identity")
 ```
@@ -308,19 +308,24 @@ res_boot$par
 ```
 
 ```{r}
-rep_boot <- function(rep, crear_log_sigma, est_mle, n){
-  muestra_bootstrap <- simular_modelo(n, 
-                               est_mle["estimated sigma", "estimador"])
-  log_p_boot <- crear_log_sigma(muestra_bootstrap)
+rep_boot <- function(rep, crear_log_fn, sigma, n){
+  muestra_bootstrap <- simular_modelo(n, sigma)
+  log_p_boot <- crear_log_fn(muestra_bootstrap)
   # optimizamos
   res_boot <- optim(100, log_p_boot, lower = 0.001, upper = 100,
   control = list(fnscale = -1, maxit = 1000), method = "Brent")
   try(if(res_boot$convergence != 0) stop("No se alcanzó convergencia."))
   tibble(parametro = c("sigma"), estimador_boot = res_boot$par) 
 }
-reps_boot <- map_dfr(1:5000, ~ rep_boot(.x, crear_log_sigma, est_mle, 
-                                        n = n_sample, rep = ".id")) 
-reps_boot
+estim_sigma <-est_mle["estimated sigma", "estimador"]
+reps_boot <- map_dfr(1:5000, ~ rep_boot(.x, 
+                                        crear_log_fn = crear_log_sigma,
+                                        sigma = estim_sigma, 
+                                        n = n_samples)) 
+
+ggplot(reps_boot, aes(x= estimador_boot)) + 
+  geom_histogram() +
+  labs(title="results of parametric bootstrap for sigma")
 ```
 
 \
@@ -331,6 +336,25 @@ reps_boot
     Comienza especificando una inicial Gamma Inversa, justifica tu
     elección de los parámetros de la distribución inicial y grafica la
     función de densidad.
+
+```{r}
+# inicial value for a, and b
+a <- 550
+b <- 50
+dist_inicial <- rgamma(n_samples, a, b)
+# graficar para buscar los valores de a y b
+g_dist_inicial <- ggplot(tibble(dist_inicial), aes(dist_inicial)) + geom_histogram()
+g_dist_inicial
+density_gamma <-tibble(x = 1:n_samples, p=dist_inicial)
+plot_g <- ggplot(density_gamma, aes(x=p)) + geom_density(fill = "skyblue", color= "black", alpha = 0.7)+
+  labs(title ="inicial pdf of selected inverse gamma distribution, a = 550, b=50")
+plot_g
+
+```
+
+Con trial & error buscamos un valor que tiene un pico en un valor aprox
+de la 11 (bootstrap parametrico nos dio un valor de 11.69) y con una
+varianza no tan alta. Con eso llegamos a a = 550 y b = 50.
 
 -   Calcula analíticamente la distribución posterior.
 
