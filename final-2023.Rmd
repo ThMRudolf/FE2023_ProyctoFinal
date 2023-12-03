@@ -120,16 +120,6 @@ l_p40 <- log_verosim_4one(p0[4], x[4], sum(x))
 
 verosim_tbl <- tibble(p = seq(0.5, 0.6, 0.001)) %>% 
   mutate(log_verosim = log_verosim_4one(p, x[1], sum(x)))
-g1 <- ggplot(verosim_tbl, aes(x = p, y = log_verosim)) +
-  geom_line() +
-    geom_segment(x = p_hat[1], xend = p_hat[1], y = -900, yend = l_p1_hat, colour = "red") +
-  geom_segment(x = p0[1], xend = p0[1], y = -900, yend = l_p10, colour = "gray") +
-  geom_errorbar(aes(x = p0[1],  ymin = l_p10, ymax = l_p1_hat), 
-               colour = "orange", width = 0.05) +
-  annotate("text", x = 0.48, y = -81.5, label = "3.79") +
- annotate("text", x = 0.515, y = -91, label ="nula", colour = "gray20") +
-  annotate("text", x = 0.665, y = -91, label ="max verosímil", colour = "red") +
-  labs(subtitle = expression(paste(lambda, "=2(3.79)=7.58"))) 
   
   result_lambda <- tibble(lambda1 = 2*(l_p1_hat - l_p10), 
                           lambda2 = 2*(l_p2_hat - l_p20),
@@ -287,13 +277,14 @@ $\sigma^2$.
 $L(\sigma^2)=\prod^{n}_{i=1} \frac{1}{\sqrt{2\pi\sigma^2}} \exp^{\frac{-(X_i-\hat{X})^2}{2 \sigma^2}}$
 
 ```         
-La función de log-versosimilitud se define de esta manera:
 ```
+
+La función de log-versosimilitud se define de esta manera:
 
 $Log(L(\sigma^2))=-\frac{n}{2}log(2\pi)-\frac{n}{2}log(\sigma^2)-\frac{1}{2\sigma^2}\sum^n_{i=1}{(X_1-\hat{X})^2}$
 
-Como estamos optimizando a travez de derivadas, podemo neglegar todos lo
-constantes, ya que la derivada de una constante es igual a cero.
+Como estamos optimizando a travez de derivadas, podemo "neglegt" todos
+lo constantes, ya que la derivada de una constante es igual a cero.
 Adicionalmente sabemos que $\hat{X}$ es conocido y es igual a cero. De
 esa manera se simplifica la formula:
 
@@ -304,6 +295,7 @@ $Log(L(\sigma^2))=-\frac{n}{2}log(\sigma^2)-\frac{1}{2\sigma^2}\sum^n_{i=1}{(X_i
     bootstrap.
 
 ```{r}
+set.seed(312)
 crear_log_sigma <- function(x){
   log_p <- function(pars){
     desv_est = pars[1]
@@ -338,7 +330,7 @@ ggplot(plot_data, aes(x = x, fill = dist)) +
 Bootstrap Parametrico:
 
 ```{r}
-
+set.seed(312)
 simular_modelo <- function(n, sigma){
   media = 0
   rnorm(n, media, sigma)
@@ -359,6 +351,7 @@ res_boot$par
 ```
 
 ```{r}
+set.seed(312)
 rep_boot <- function(rep, crear_log_fn, sigma, n){
   muestra_bootstrap <- simular_modelo(n, sigma)
   log_p_boot <- crear_log_fn(muestra_bootstrap)
@@ -379,6 +372,11 @@ ggplot(reps_boot, aes(x= estimador_boot)) +
   labs(title="results of parametric bootstrap for sigma")
 reps_boot_qq <- quantile(reps_boot$estimador_boot, c(0.025,0.5, 0.975))
 reps_boot_qq 
+result_boot <-tibble(ee_boot = sd(reps_boot$estimador_boot), 
+                     mean_boot = mean(reps_boot$estimador_boot), 
+                     low = mean_boot - 2*ee_boot,
+                     up = mean_boot + 2*ee_boot)
+result_boot %>% gt()
 ```
 
 \
@@ -394,21 +392,21 @@ reps_boot_qq
 set.seed(312)
 # inicial value for a, and b
 a <- 2
-b <- 100
+b <- 130
 dist_inicial_tau <- rgamma(n_samples, a, b)
-sigma_init <- 1/sqrt(dist_inicial_tau)
+vari_init <- 1/sqrt(dist_inicial_tau)
 # graficar para buscar los valores de a y b
-g_dist_inicial <- ggplot(tibble(sigma_init), aes(sigma_init)) + geom_histogram() + labs(title="histogram to find a and b\n as close as possible to \n the prametric bootstrap")
-density_gamma <-tibble(x = 1:n_samples, p=sigma_init)
+g_dist_inicial <- ggplot(tibble(vari_init), aes(vari_init)) + geom_histogram() + labs(title="histogram to find a and b\n as close as possible to \n the prametric bootstrap")
+density_gamma <-tibble(x = 1:n_samples, p=vari_init)
 plot_g <- ggplot(density_gamma, aes(x=p)) + geom_density(fill = "skyblue", color= "black", alpha = 0.7)+
-  labs(title ="inicial pdf of selected inverse \n gamma distribution,\n a = 2, b=100")
+  labs(title ="inicial pdf of selected inverse \n gamma distribution,\n a = 2, b=130")
 g_dist_inicial + plot_g
 
 ```
 
 Con trial & error buscamos un valor que tiene un pico en un valor aprox
 de la 11 (bootstrap parametrico nos dio un valor de 11.4) y con una
-varianza no tan alta. Con eso llegamos a a=2 y b = 100.
+varianza no tan alta. Con eso llegamos a a=2 y b = 130.
 
 -   Calcula analíticamente la distribución posterior.
 
@@ -429,23 +427,35 @@ $z=\frac{1}{n}\sum (x-\hat{x})^2$
     calcula el error estándar de la distribución.
 
 ```{r}
+set.seed(312)
 n_runs <- 5000
 a_post <- a + n_runs/2 + 1
 b_post <- b + n_runs/2 *(b/(a-1))
-dist_post_sigma <- sqrt(1/rgamma(n_samples, a_post, b_post))
-ee_dist_post_sigma <- sd(dist_post_sigma)
-mean_dist_post_sigma <- mean(dist_post_sigma)
-dist_post_sigma_tbl <- tibble(dist_post = dist_post_sigma)
-ggplot(dist_post_sigma_tbl, aes(dist_post)) + geom_histogram()
+dist_post_vari <- sqrt(1/rgamma(n_samples, a_post, b_post))
+ee_dist_post_vari <- sd(dist_post_vari)
+mean_dist_post_vari <- mean(dist_post_vari)
+dist_post_vari_tbl <- tibble(dist_post = dist_post_vari)
+ggplot(dist_post_vari_tbl, aes(dist_post)) + geom_histogram()
 
-dist_post_sigma_tbl_sum <- dist_post_sigma_tbl %>% summarise(ee_dist = sd(dist_post), 
-                                  mean_dist = mean(dist_post))
-(dist_post_sigma_tbl_sum) %>% gt()
+result_bayesian <- dist_post_vari_tbl %>% summarise(ee_dist = sd(dist_post), 
+                                  mean_dist = mean(dist_post), 
+                                  low = mean_dist - 2*ee_dist, 
+                                  up = mean_dist + 2*ee_dist)
+(result_bayesian) %>% gt()
 ```
 
 -   ¿Cómo se comparan tus resultados con los de bootstrap paramétrico?
 
-*Respuestas*:
+*Respuestas*: Los resultados son parecdios: bootstrap parametrico llega
+a un valor de 11.43339 y en la analisis bayesiano a un calor de 11.413.
+Asi ambas methodos llegan a resultados parecidos que nos afirma mas que
+le valor debe estar en este rango. El valor del resultado bayesiano se
+encuentra dentro del intervalo de 95% del resultado bootstrap
+parametrico, y el valor del resultado de bootstrap se encuentra en el
+intervalo de bayesiano. *Nota*: Como le método bayesiano requiere cierto
+conocimiento a priori como por ejemplo definir los parametros $a$ y $b$
+y si estos valores están correctos, el metodo bayesiano es mas rapido y
+menos costoso en sentido de costo computacional.
 
 2.3 Supongamos que ahora buscamos hacer inferencia del parámetro
 $\tau=log(\sigma)$, ¿cuál es el estimador de máxima verosimilitud?
@@ -456,14 +466,10 @@ $\tau=log(\sigma)$, ¿cuál es el estimador de máxima verosimilitud?
 
 ```{r}
 
-crear_verosim_tau <- function(sigma){
-  log_p <- function(pars){
-    a = pars[1]
-    b = pars[2]
-    # 
-    verosim <- -(a+1)*log(sigma) - b/sigma - log(gamma(a)) -a*log(b)
-  }  
-  log_p
+crear_verosim_tau <- function(vari, a, b){
+  p_sigma <- sqrt(1/ (b^a/gamma(a) * vari^-(a+1) * exp(b/vari)))
+  verosim_tau <- log(p_sigma)
+  verosim_tau
 }
 n_samples <- 150
 sample_invgamma <- sqrt(1/rgamma(n_samples, a, b))
@@ -500,16 +506,17 @@ reps_boot
 
 ### 3. Bayesiana y regularización
 
-Los datos *pew_research_center_june_elect_wknd_data.dta* tienen información de 
-ecnuestas realizadas durante la campaña presidencial 2008 de EUA.
+Los datos *pew_research_center_june_elect_wknd_data.dta* tienen
+información de ecnuestas realizadas durante la campaña presidencial 2008
+de EUA.
 
 ```{r}
 poll_data <- foreign::read.dta("data/pew_research_center_june_elect_wknd_data.dta")
 ```
 
-* Estima el porcentaje de la población de cada estado (excluyendo Alaska, Hawai, 
-y DC)  que se considera *very liberal*, utilizando el estimador de máxima 
-verosimilitud.
+-   Estima el porcentaje de la población de cada estado (excluyendo
+    Alaska, Hawai, y DC) que se considera *very liberal*, utilizando el
+    estimador de máxima verosimilitud.
 
 ```{r}
 set.seed(1234)
@@ -534,9 +541,10 @@ estimador_mle
 
 ```
 
-  - Grafica en el eje *x* el número de encuestas para cada estado y en el eje *y* 
-  la estimación de máxima verosimilitud para *very liberal*. ¿Qué observas?  
-  
+-   Grafica en el eje *x* el número de encuestas para cada estado y en
+    el eje *y* la estimación de máxima verosimilitud para *very
+    liberal*. ¿Qué observas?
+
 ```{r}
 set.seed(1234)
 
@@ -559,8 +567,11 @@ estimador_mle <- n_filtro / n_total
 estimador_mle
 
 ```
-- Grafica en el eje *x* el porcentaje de votos que obtuvo Obama en la elección
-  para cada estado y en el eje *y* la estimación de máxima verosimilitud para *very liberal*. ¿Qué observas? (usa los datos *2008ElectionResult.csv*)
+
+-   Grafica en el eje *x* el porcentaje de votos que obtuvo Obama en la
+    elección para cada estado y en el eje *y* la estimación de máxima
+    verosimilitud para *very liberal*. ¿Qué observas? (usa los datos
+    *2008ElectionResult.csv*)
 
 ```{r}
 state_counts <- table(data$state)
@@ -579,11 +590,11 @@ ggplot(plot_data, aes(x = state, y = num_encuestas)) +
 
 ```
 
-
-* Estima el mismo porcentaje (*very liberal*) usando inferencia bayesiana, en particular
-la familia conjugada beta-binomial. Deberás estimar la proporción de manera 
-independiente para cada estado, sin embargo, utilizarás la misma inicial a lo
-largo de todos: $Beta(8,160)$.
+-   Estima el mismo porcentaje (*very liberal*) usando inferencia
+    bayesiana, en particular la familia conjugada beta-binomial. Deberás
+    estimar la proporción de manera independiente para cada estado, sin
+    embargo, utilizarás la misma inicial a lo largo de todos:
+    $Beta(8,160)$.
 
 ```{r}
 # solo una vez.
@@ -591,7 +602,6 @@ library(cmdstanr)
 
 install_cmdstan()
 ```
-
 
 ```{r}
 
@@ -615,9 +625,8 @@ ajuste <- sampling(modelo_stan, data = datos, chains = 4, iter = 2000)
 print(summary(ajuste))
 ```
 
+-   Simula de la distribución incial y describe.
 
-  - Simula de la distribución incial y describe.
-  
 ```{r}
 # Parámetros de la distribución Beta inicial
 alpha_inicial <- 8
@@ -635,10 +644,10 @@ hist(simulaciones_iniciales, main = "Simulación de la Distribución Inicial (Be
 
 ```
 
-  
-  - Para dos de los estados: Idaho y Virginia, adicional a calcular la posterior
-  usando las propiedades de la familia conjugada, utiliza Stan para hacer la inferencia, 
-  revisa los diagnósticos de convergencia y describe tus observaciones ($\hat{R}$ y $ESS$).
+-   Para dos de los estados: Idaho y Virginia, adicional a calcular la
+    posterior usando las propiedades de la familia conjugada, utiliza
+    Stan para hacer la inferencia, revisa los diagnósticos de
+    convergencia y describe tus observaciones ($\hat{R}$ y $ESS$).
 
 ```{r}
 datos_idaho_virginia <- list(
@@ -659,9 +668,8 @@ print(summary(ajuste_idaho_virginia))
 
 ```
 
-
-  - Utiliza la media posterior de cada estado como estimador puntual y repite las
-  gráficas del inciso anterior.
+-   Utiliza la media posterior de cada estado como estimador puntual y
+    repite las gráficas del inciso anterior.
 
 ```{r}
 extracted_samples <- as.array(ajuste_idaho_virginia)
@@ -683,13 +691,11 @@ barplot(t(df_medias), beside = TRUE, col = c("skyblue", "lightcoral"), names.arg
 
 ```
 
-
-**Nota:** En problemas como este, donde estamos estimando un parámetro para cada 
-grupo (estado e nuestro caso) podemos optar por un modelo jerárquico, en 
-donde la distribución de las $\theta_j$ no esta dada por la incial 
-sino que se modela con un nivel adicional, cuyos parámetros se estiman con los datos
-y tienen a su vez una distribución incial:
-
+**Nota:** En problemas como este, donde estamos estimando un parámetro
+para cada grupo (estado e nuestro caso) podemos optar por un modelo
+jerárquico, en donde la distribución de las $\theta_j$ no esta dada por
+la incial sino que se modela con un nivel adicional, cuyos parámetros se
+estiman con los datos y tienen a su vez una distribución incial:
 
 $$y_j|\theta_j \sim Binomial(n_j, \theta_j)$$
 
@@ -697,4 +703,5 @@ $$\theta_j \sim Beta(\alpha, \beta) $$
 
 $$\alpha \sim g(a_o), \beta \sim f(b_0)$$
 
-donde $g(a_0)$ y $f(b_0)$ son las inciales seleccionadas con conocimiento experto.
+donde $g(a_0)$ y $f(b_0)$ son las inciales seleccionadas con
+conocimiento experto.
