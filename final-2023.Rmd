@@ -31,6 +31,7 @@ Instrucciones:
 library(tidyverse)
 library(gt)
 library(patchwork)
+library(ggplot2)
 ```
 
 ## 1. Pruebas de hipótesis
@@ -144,7 +145,7 @@ ahora hacemos el log(P):
 $log(P)=log(\frac{n!}{x_1!x_2!x_3!x_4!})+x_1log(p_1)+x_2log(p_2)+x_3log(p_3)+x_4log(p_4)$
 
 la parte de $log(\frac{n!}{x_1!x_2!x_3!x_4!})$ no se necesita consider
-ya que es una constant en ambas $L$.
+ya que es una constant en ambas $Log()$.
 
 ```{r}
 log_verosim_multinominal <- function(p_vec, n_vec, n){
@@ -157,7 +158,7 @@ log_verosim_multinominal <- function(p_vec, n_vec, n){
    }
  }
 }
-lv_multi_hat <- x[1]*log(p_hat[1]) + x[2]*log(p_hat[2]) + 
+lv_multi_hat  <- x[1]*log(p_hat[1]) + x[2]*log(p_hat[2]) + 
    x[3]*log(p_hat[3]) + x[4]*log(p_hat[4])
  
 lv_multi_0 <- x[1]*log(p0[1]) + x[2]*log(p0[2]) + 
@@ -195,7 +196,8 @@ reps <- tibble(idx = 1:n_reps, w =map_dbl(1:n_reps, ~ pois_rep(1, 20)))
 
 count = 0
 limit_p_value = 0.05
-count_idx = 0
+count_idx = array(0, dim=c(n_reps, 1))
+p_value <- array(0, dim=c(n_reps, 1))
 for(k in 1:length(reps$w)){
   p_value[k] <- 2*min(1-pnorm(abs(reps$w[k])))
   if(p_value[k]<limit_p_value){
@@ -204,9 +206,10 @@ for(k in 1:length(reps$w)){
     #cat("fount a true\n")
     }
 }
+count_idx <- count_idx[1:count]
 perc_err_tipio_1=count/n_reps
 (perc_err_tipio_1)
-p_values_err_tipo_1 <- p_value[count_idx[3:length(count_idx)]]
+p_values_err_tipo_1 <- p_value[count_idx[1:length(count_idx)]]
 err_tipio_1_tbl <- tibble(err_tipo_1_mean = mean(p_values_err_tipo_1),
                           err_tipo_1_sd = sd(p_values_err_tipo_1), 
                           err_tipo_1_median = median(p_values_err_tipo_1),
@@ -326,7 +329,7 @@ simular_modelo <- function(n, sigma){
   media = 0
   rnorm(n, media, sigma)
 }
-muestra_bootstrap <- simular_modelo(n_sample, 
+muestra_bootstrap <- simular_modelo(n_samples, 
                                     est_mle["sigma", "estimador"])
 head(muestra_bootstrap)
 
@@ -395,10 +398,40 @@ varianza no tan alta. Con eso llegamos a a=2 y b = 100.
 
 -   Calcula analíticamente la distribución posterior.
 
+![](P2.2_desarrollo_analitico_1.jpeg)
+
+![](P2.2_desarrollo_analitico_2.jpeg)
+
+![](P2.2_desarrollo_analitico_3.jpeg)
+
+![](P2.2_desarrollo_analitico_4.jpeg)
+
+La distribución posterior es una gama inversa con los parameteros
+$\alpha = \alpha_{inicial}+\frac{n}{2}$ y
+$\beta=\beta_{inicial}+\frac{n}{2} z$ y
+$z=\frac{1}{n}\sum (x-\hat{x})^2$
+
 -   Realiza un histograma de simulaciones de la distribución posterior y
     calcula el error estándar de la distribución.
 
+```{r}
+n_runs <- 5000
+a_post <- a + n_runs/2 + 1
+b_post <- b + n_runs/2 *(b/(a-1))
+dist_post_sigma <- sqrt(1/rgamma(n_samples, a_post, b_post))
+ee_dist_post_sigma <- sd(dist_post_sigma)
+mean_dist_post_sigma <- mean(dist_post_sigma)
+dist_post_sigma_tbl <- tibble(dist_post = dist_post_sigma)
+ggplot(dist_post_sigma_tbl, aes(dist_post)) + geom_histogram()
+
+dist_post_sigma_tbl_sum <- dist_post_sigma_tbl %>% summarise(ee_dist = sd(dist_post), 
+                                  mean_dist = mean(dist_post))
+(dist_post_sigma_tbl_sum) %>% gt()
+```
+
 -   ¿Cómo se comparan tus resultados con los de bootstrap paramétrico?
+
+*Respuestas*:
 
 2.3 Supongamos que ahora buscamos hacer inferencia del parámetro
 $\tau=log(\sigma)$, ¿cuál es el estimador de máxima verosimilitud?
@@ -407,54 +440,249 @@ $\tau=log(\sigma)$, ¿cuál es el estimador de máxima verosimilitud?
     del 95% para el parámetro $\tau$ y realiza un histograma de las
     replicaciones bootstrap.
 
+```{r}
+
+crear_verosim_tau <- function(sigma){
+  log_p <- function(pars){
+    a = pars[1]
+    b = pars[2]
+    # 
+    verosim <- -(a+1)*log(sigma) - b/sigma - log(gamma(a)) -a*log(b)
+  }  
+  log_p
+}
+n_samples <- 150
+sample_invgamma <- sqrt(1/rgamma(n_samples, a, b))
+
+verosim_tau <- crear_verosim_tau(sample_invgamma)
+
+res <- optim(c(2, 100), verosim_tau, control = list(fnscale = -1), method = "Nelder-Mead")
+res$convergence
+
+a_init <- res$par[1]
+b_init <- res$par[2]
+
+simular_modelo <- function(n, a, b){
+  sigma <- sqrt(1/rgamma(n,a, b))
+}
+
+rep_boot <- function(rep, crear_verosim_tau, tau_init, n_samples){
+  muestra_bootstrap <- simular_modelo(n_samples, a,b)
+  log_p_boot <- crear_verosim_tau(a, b) #crear_verosim_tau(muestra_bootstrap) 
+  # optimizamos
+  res_boot <- optim(c(0.5),crear_verosim_tau, lower=0, upper=200,
+    control = list(fnscale = -1, maxit = 1000), method = "Brent")
+  try(if(res_boot$convergence != 0) stop("No se alcanzó convergencia."))
+  tibble(parametro = c("sigma"), estimador_boot = res_boot$par) 
+}
+reps_boot <- map_dfr(1:5000, ~ rep_boot(.x, crear_verosim_tau, 
+                                        tau_init, n_samples)) 
+reps_boot
+```
+
 -   Ahora volvamos a inferencia bayesiana, calcula un intervalo de
     confianza para $\tau$ y un histograma de la distribución posterior
     de $\tau$.
 
 ### 3. Bayesiana y regularización
 
-Los datos *pew_research_center_june_elect_wknd_data.dta* tienen
-información de ecnuestas realizadas durante la campaña presidencial 2008
-de EUA.
+Los datos *pew_research_center_june_elect_wknd_data.dta* tienen información de 
+ecnuestas realizadas durante la campaña presidencial 2008 de EUA.
 
 ```{r}
 poll_data <- foreign::read.dta("data/pew_research_center_june_elect_wknd_data.dta")
 ```
 
--   Estima el porcentaje de la población de cada estado (excluyendo
-    Alaska, Hawai, y DC) que se considera *very liberal*, utilizando el
-    estimador de máxima verosimilitud.
+* Estima el porcentaje de la población de cada estado (excluyendo Alaska, Hawai, 
+y DC)  que se considera *very liberal*, utilizando el estimador de máxima 
+verosimilitud.
 
-    -   Grafica en el eje *x* el número de encuestas para cada estado y
-        en el eje *y* la estimación de máxima verosimilitud para *very
-        liberal*. ¿Qué observas?\
-    -   Grafica en el eje *x* el porcentaje de votos que obtuvo Obama en
-        la elección para cada estado y en el eje *y* la estimación de
-        máxima verosimilitud para *very liberal*. ¿Qué observas? (usa
-        los datos *2008ElectionResult.csv*)
+```{r}
+set.seed(1234)
 
--   Estima el mismo porcentaje (*very liberal*) usando inferencia
-    bayesiana, en particular la familia conjugada beta-binomial. Deberás
-    estimar la proporción de manera independiente para cada estado, sin
-    embargo, utilizarás la misma inicial a lo largo de todos:
-    $Beta(8,160)$.
+data <- data.frame(ideo = poll_data$ideo, state = poll_data$state)
+data <- na.omit(data)
 
-    -   Simula de la distribución incial y describe.
 
-    -   Para dos de los estados: Idaho y Virginia, adicional a calcular
-        la posterior usando las propiedades de la familia conjugada,
-        utiliza Stan para hacer la inferencia, revisa los diagnósticos
-        de convergencia y describe tus observaciones ($\hat{R}$ y
-        $ESS$).
+#Se contarán las columnas 
+n_total <- nrow(data)
 
-    -   Utiliza la media posterior de cada estado como estimador puntual
-        y repite las gráficas del inciso anterior.
+states_to_exclude <- c("alaska", "hawaii", "washington dc")
 
-**Nota:** En problemas como este, donde estamos estimando un parámetro
-para cada grupo (estado e nuestro caso) podemos optar por un modelo
-jerárquico, en donde la distribución de las $\theta_j$ no esta dada por
-la incial sino que se modela con un nivel adicional, cuyos parámetros se
-estiman con los datos y tienen a su vez una distribución incial:
+filtro <- data[data$state %in% states_to_exclude | data$ideo == "very liberal", ]
+
+n_filtro <- nrow(data[!data$state %in% states_to_exclude & data$ideo == "very liberal", ])
+
+
+# Estimar la proporción usando el estimador de máxima verosimilitud
+estimador_mle <- n_filtro / n_total
+estimador_mle
+
+```
+
+  - Grafica en el eje *x* el número de encuestas para cada estado y en el eje *y* 
+  la estimación de máxima verosimilitud para *very liberal*. ¿Qué observas?  
+  
+```{r}
+set.seed(1234)
+
+data <- data.frame(ideo = poll_data$ideo, state = poll_data$state)
+data <- na.omit(data)
+
+
+#Se contarán las columnas 
+n_total <- nrow(data)
+
+states_to_exclude <- c("alaska", "hawaii", "washington dc")
+
+filtro <- data[data$state %in% states_to_exclude | data$ideo == "very liberal", ]
+
+n_filtro <- nrow(data[!data$state %in% states_to_exclude & data$ideo == "very liberal", ])
+
+
+# Estimar la proporción usando el estimador de máxima verosimilitud
+estimador_mle <- n_filtro / n_total
+estimador_mle
+
+```
+- Grafica en el eje *x* el porcentaje de votos que obtuvo Obama en la elección
+  para cada estado y en el eje *y* la estimación de máxima verosimilitud para *very liberal*. ¿Qué observas? (usa los datos *2008ElectionResult.csv*)
+
+```{r}
+state_counts <- table(data$state)
+plot_data <- data.frame(
+  state = names(state_counts),
+  num_encuestas = as.numeric(state_counts),
+  estimacion_mle = rep(estimador_mle, length(state_counts))
+)
+
+# Graficar con ggplot2
+ggplot(plot_data, aes(x = state, y = num_encuestas)) +
+  geom_bar(stat = "identity", fill = "lightblue", alpha = 0.7) +
+  #geom_line(aes(y = estimacion_mle * max(num_encuestas)), color = "red", size = 1) +
+  labs(x = "Estado", y = "Número de Encuestas / Estimación MLE") +
+  theme(axis.text.x = element_text(angle=45, hjust = 1))+
+    theme_minimal() 
+
+```
+
+
+* Estima el mismo porcentaje (*very liberal*) usando inferencia bayesiana, en particular
+la familia conjugada beta-binomial. Deberás estimar la proporción de manera 
+independiente para cada estado, sin embargo, utilizarás la misma inicial a lo
+largo de todos: $Beta(8,160)$.
+
+```{r}
+# solo una vez.
+library(cmdstanr)
+
+install_cmdstan()
+```
+
+
+```{r}
+
+library(rstan)
+
+####otro intento 
+datos <- list(
+  N = nrow(data),
+  y = as.integer(data$ideo == "very liberal"),
+  state = as.integer(factor(data$state)),
+  num_states = length(unique(data$state))
+)
+
+# Compilar el modelo
+# modelo_stan <- stan_model("Stan.stan")
+archivo_stan <- file.path("Stan.stan")
+# compilar
+modelo_stan  <- cmdstan_model(archivo_stan)
+# Ajustar el modelo
+#ajuste <- sampling(modelo_stan, data = datos, chains = 4, iter = 2000)
+ajuste <- modelo_stan$sample(data = datos, 
+                             seed = 1234,
+                             chains = 4,
+                             refresh = 2000)
+
+# Resumen de los resultados
+print(summary(ajuste))
+```
+
+
+  - Simula de la distribución incial y describe.
+  
+```{r}
+# Parámetros de la distribución Beta inicial
+alpha_inicial <- 8
+beta_inicial <- 160
+
+# Número de simulaciones
+num_simulaciones <- 1000
+
+# Simular de la distribución Beta inicial
+simulaciones_iniciales <- rbeta(num_simulaciones, alpha_inicial, beta_inicial)
+
+# Visualizar los resultados
+hist(simulaciones_iniciales, main = "Simulación de la Distribución Inicial (Beta(8,160))", 
+     xlab = "Valores Simulados", ylab = "Frecuencia", col = "skyblue", border = "black")
+
+```
+
+  
+  - Para dos de los estados: Idaho y Virginia, adicional a calcular la posterior
+  usando las propiedades de la familia conjugada, utiliza Stan para hacer la inferencia, 
+  revisa los diagnósticos de convergencia y describe tus observaciones ($\hat{R}$ y $ESS$).
+
+```{r}
+datos_idaho_virginia <- list(
+  N = sum(data$state %in% c("idaho", "virginia")),
+  y = as.integer(data$ideo == "very liberal")[data$state %in% c("idaho", "virginia")],
+  state = as.integer(factor(data$state[data$state %in% c("idaho", "virginia")])),
+  num_states = 2
+)
+
+# Compilar el modelo específico para Idaho y Virginia
+modelo_stan_idaho_virginia <- stan_model("Stan.stan")
+
+# Ajustar el modelo
+ajuste_idaho_virginia <- sampling(modelo_stan_idaho_virginia, data = datos_idaho_virginia, chains = 4, iter = 2000)
+
+# Resumen de los resultados
+print(summary(ajuste_idaho_virginia))
+
+```
+
+
+  - Utiliza la media posterior de cada estado como estimador puntual y repite las
+  gráficas del inciso anterior.
+
+```{r}
+extracted_samples <- as.array(ajuste_idaho_virginia)
+
+# Obtener las medias posteriores para Idaho y Virginia
+media_posterior_idaho <- mean(extracted_samples[, , 1])
+media_posterior_virginia <- mean(extracted_samples[, , 2])
+
+# Imprimir las medias posteriores
+media_posterior_idaho
+media_posterior_virginia
+
+# Visualizar las distribuciones posteriores
+
+df_medias <- data.frame(Idaho = media_posterior_idaho, Virginia = media_posterior_virginia)
+
+# Graficar las medias posteriores
+barplot(t(df_medias), beside = TRUE, col = c("skyblue", "lightcoral"), names.arg = c("Idaho", "Virginia"), ylim = c(0, 0.1), ylab = "Media Posterior", main = "Medias Posteriores para Idaho y Virginia")
+
+```
+
+
+**Nota:** En problemas como este, donde estamos estimando un parámetro para cada 
+grupo (estado e nuestro caso) podemos optar por un modelo jerárquico, en 
+donde la distribución de las $\theta_j$ no esta dada por la incial 
+sino que se modela con un nivel adicional, cuyos parámetros se estiman con los datos
+y tienen a su vez una distribución incial:
+
 
 $$y_j|\theta_j \sim Binomial(n_j, \theta_j)$$
 
@@ -462,5 +690,4 @@ $$\theta_j \sim Beta(\alpha, \beta) $$
 
 $$\alpha \sim g(a_o), \beta \sim f(b_0)$$
 
-donde $g(a_0)$ y $f(b_0)$ son las inciales seleccionadas con
-conocimiento experto.
+donde $g(a_0)$ y $f(b_0)$ son las inciales seleccionadas con conocimiento experto.
