@@ -145,27 +145,41 @@ ahora hacemos el log(P):
 $log(P)=log(\frac{n!}{x_1!x_2!x_3!x_4!})+x_1log(p_1)+x_2log(p_2)+x_3log(p_3)+x_4log(p_4)$
 
 la parte de $log(\frac{n!}{x_1!x_2!x_3!x_4!})$ no se necesita consider
-ya que es una constant en ambas $Log()$.
+ya que es una constant en ambas $Log()$. Usamos la funcion "mutinom()"
 
 ```{r}
-log_verosim_multinominal <- function(p_vec, n_vec, n){
- lvmulti <- n_vec[1]*log(p_vec[1])
- if (n>1)
- {
-   for (idx in 2:n)
-   {
-     lvmulti <- n_vec[idx]*log(p_vec[idx]) + lvmulti
-   }
- }
+x_observed <- c(315, 101, 108, 32)
+p_hat <- x_observed/sum(x_observed)
+# Parámetros bajo H0
+p0 <- c(9/16, 3/16, 3/16, 1/16)
+
+# Función de verosimilitud para una distribución multinomial
+multinomial_likelihood <- function(p, x) {
+  return(sum(dmultinom(x, size = sum(x), prob = p, log = TRUE)))
 }
-lv_multi_hat  <- x[1]*log(p_hat[1]) + x[2]*log(p_hat[2]) + 
-   x[3]*log(p_hat[3]) + x[4]*log(p_hat[4])
- 
-lv_multi_0 <- x[1]*log(p0[1]) + x[2]*log(p0[2]) + 
-   x[3]*log(p_hat[3]) + x[4]*log(p0[4])
- 
-lambda_multinominal <- 2*(lv_multi_hat - lv_multi_0)
- result_lambda %>% mutate(lambda_mn =lambda_multinominal) %>% gt()
+
+# Logaritmo de la función de verosimilitud bajo H0
+log_likelihood_H0 <- multinomial_likelihood(p0, x_observed)
+
+# Función de verosimilitud bajo H1 (usando los datos observados)
+log_likelihood_H1 <- function(p) multinomial_likelihood(p, x_observed)
+
+# Realizar la prueba de cociente de verosimilitudes
+LR_statistic <- -2 * (log_likelihood_H0 - log_likelihood_H1(p_hat))
+
+# Grados de libertad
+df <- length(p0) - 1
+
+# P-valor
+p_value <- 1 - pchisq(LR_statistic, df)
+
+# Imprimir resultados
+cat("Estadístico de prueba (Lambda):", LR_statistic, "\n")
+cat("Grados de libertad:", df, "\n")
+cat("P-valor:", p_value, "\n")
+
+result_lambda <- result_lambda %>% mutate(lambda_mn = LR_statistic) %>% gt() 
+result_lambda
 ```
 
 \
@@ -561,8 +575,7 @@ ggplot(plot_data, aes(x = state, y = num_encuestas)) +
   geom_bar(stat = "identity", fill = "lightblue", alpha = 0.7) +
   geom_line(aes(y = estimacion_mle * max(num_encuestas)), color = "red", size = 1) +
   labs(x = "Estado", y = "Número de Encuestas / Estimación MLE") +
-  theme(axis.text.x = element_text(angle=45, hjust = 1))+
-    theme_minimal() 
+  theme(axis.text.x = element_text(angle = 90))
 
 ```
 
