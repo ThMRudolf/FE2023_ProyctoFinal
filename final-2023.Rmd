@@ -559,7 +559,7 @@ plot_data <- data.frame(
 # Graficar con ggplot2
 ggplot(plot_data, aes(x = state, y = num_encuestas)) +
   geom_bar(stat = "identity", fill = "lightblue", alpha = 0.7) +
-  #geom_line(aes(y = estimacion_mle * max(num_encuestas)), color = "red", size = 1) +
+  geom_line(aes(y = estimacion_mle * max(num_encuestas)), color = "red", size = 1) +
   labs(x = "Estado", y = "Número de Encuestas / Estimación MLE") +
   theme(axis.text.x = element_text(angle=45, hjust = 1))+
     theme_minimal() 
@@ -593,16 +593,10 @@ datos <- list(
 )
 
 # Compilar el modelo
-# modelo_stan <- stan_model("Stan.stan")
-archivo_stan <- file.path("Stan.stan")
-# compilar
-modelo_stan  <- cmdstan_model(archivo_stan)
+ modelo_stan <- stan_model("Stan.stan")
 # Ajustar el modelo
-#ajuste <- sampling(modelo_stan, data = datos, chains = 4, iter = 2000)
-ajuste <- modelo_stan$sample(data = datos, 
-                             seed = 1234,
-                             chains = 4,
-                             refresh = 2000)
+ajuste <- sampling(modelo_stan, data = datos, chains = 4, iter = 2000)
+
 
 # Resumen de los resultados
 print(summary(ajuste))
