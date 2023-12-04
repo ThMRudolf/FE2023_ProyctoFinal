@@ -1,9 +1,11 @@
 ---
-authors: Ximena Paz, Thomas Rudolf
 title: "Final Fundamentos 2023"
-output: html_document
-editor_options: 
-  markdown: 
+authors: Ximena Paz, Thomas Rudolf
+output:
+  html_document: default
+  pdf_document: default
+editor_options:
+  markdown:
     wrap: 72
 ---
 
@@ -460,49 +462,49 @@ menos costoso en sentido de costo computacional.
 2.3 Supongamos que ahora buscamos hacer inferencia del parámetro
 $\tau=log(\sigma)$, ¿cuál es el estimador de máxima verosimilitud?
 
--   Utiliza bootstrap paramétrico para generar un intervalo de confianza
-    del 95% para el parámetro $\tau$ y realiza un histograma de las
-    replicaciones bootstrap.
+la maxima verosimilitud es : $\tau = \prod {log(\sigma)}$ con
+$\sigma = \sqrt{reps_boot$estimador_boot}$
+
+-   con Utiliza bootstrap paramétrico para generar un intervalo de
+    confianza del 95% para el parámetro $\tau$ y realiza un histograma
+    de las replicaciones bootstrap.
 
 ```{r}
-
-crear_verosim_tau <- function(vari, a, b){
-  p_sigma <- sqrt(1/ (b^a/gamma(a) * vari^-(a+1) * exp(b/vari)))
-  verosim_tau <- log(p_sigma)
-  verosim_tau
-}
-n_samples <- 150
-sample_invgamma <- sqrt(1/rgamma(n_samples, a, b))
-
-verosim_tau <- crear_verosim_tau(sample_invgamma)
-
-res <- optim(c(2, 100), verosim_tau, control = list(fnscale = -1), method = "Nelder-Mead")
-res$convergence
-
-a_init <- res$par[1]
-b_init <- res$par[2]
-
-simular_modelo <- function(n, a, b){
-  sigma <- sqrt(1/rgamma(n,a, b))
-}
-
-rep_boot <- function(rep, crear_verosim_tau, tau_init, n_samples){
-  muestra_bootstrap <- simular_modelo(n_samples, a,b)
-  log_p_boot <- crear_verosim_tau(a, b) #crear_verosim_tau(muestra_bootstrap) 
-  # optimizamos
-  res_boot <- optim(c(0.5),crear_verosim_tau, lower=0, upper=200,
-    control = list(fnscale = -1, maxit = 1000), method = "Brent")
-  try(if(res_boot$convergence != 0) stop("No se alcanzó convergencia."))
-  tibble(parametro = c("sigma"), estimador_boot = res_boot$par) 
-}
-reps_boot <- map_dfr(1:5000, ~ rep_boot(.x, crear_verosim_tau, 
-                                        tau_init, n_samples)) 
-reps_boot
+sigma <- sqrt(reps_boot$estimador_boot)
+tau <- log(sigma)
+ee_tau = sd(tau)
+mean_tau = mean(tau)
+result_confidence_interval <- tibble(interval=c("2.5%", "97.5"),values=c(mean_tau-2*ee_tau, mean_tau+2*ee_tau)) 
+result_confidence_interval %>% gt()
+# histogram plot
+hist_tbl <- tibble(tau = tau)
+ggplot(hist_tbl, aes(x=tau) )+geom_histogram() +
+  geom_vline(xintercept = result_confidence_interval$values[1]) +
+  geom_vline(xintercept = result_confidence_interval$values[2]) +
+  geom_vline(xintercept = mean_tau)
 ```
 
 -   Ahora volvamos a inferencia bayesiana, calcula un intervalo de
     confianza para $\tau$ y un histograma de la distribución posterior
     de $\tau$.
+
+```{r}
+sigma_bay <- sqrt(dist_post_vari)
+tau_bay <- log(sigma_bay)#*sigma_bay
+ee_tau_bay <- sd(tau_bay)
+mean_tau_bay <- mean(tau_bay)
+
+result_confidence_interval_bay <- tibble(interval=c("2.5%", "97.5"),values=c(mean_tau_bay-2*ee_tau_bay, mean_tau_bay+2*ee_tau_bay)) 
+result_confidence_interval_bay %>% gt()
+
+# histogram plot
+hist_tbl_bay <- tibble(tau = tau_bay)
+ggplot(hist_tbl_bay, aes(x=tau_bay) )+geom_histogram() +
+  geom_vline(xintercept = result_confidence_interval_bay$values[1]) +
+  geom_vline(xintercept = result_confidence_interval_bay$values[2]) +
+  geom_vline(xintercept = mean_tau_bay)
+
+```
 
 ### 3. Bayesiana y regularización
 
