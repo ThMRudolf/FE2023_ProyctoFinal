@@ -568,6 +568,24 @@ n_filtro <- nrow(data[!data$state %in% states_to_exclude & data$ideo == "very li
 estimador_mle <- n_filtro / n_total
 estimador_mle
 
+# graficar:
+state_counts <- table(data$state)
+plot_data <- data.frame(
+  state = names(state_counts),
+  num_encuestas = as.numeric(state_counts),
+  estimacion_mle = rep(estimador_mle, length(state_counts))
+)
+# quitar los estados Alaska, Hawai, DC
+poll_data_2eval <- poll_data %>% filter(state != 'alaska' & state != 'hawaii' & state != 'dc')
+
+# prepare % per state, el valor de prop_vl es la max. versosimilitud
+poll_data_2eval_by_state <- poll_data_2eval %>% group_by(state) %>% summarise(prop_vl = mean(ideo == "very liberal", na.rm=TRUE), n = sum(!is.na(ideo)), k = sum(ideo == "very liberal", na.rm=TRUE))
+poll_data_2eval_by_state %>% gt()
+
+# Graficar con ggplot2
+ggplot(poll_data_2eval_by_state, aes(x = n, y = prop_vl)) +
+  geom_point(aes(color = state) )+
+  labs(x = "numero de preguntados", y = "procentaje de 'very liberal'" ) 
 ```
 
 -   Grafica en el eje *x* el porcentaje de votos que obtuvo Obama en la
@@ -576,19 +594,18 @@ estimador_mle
     *2008ElectionResult.csv*)
 
 ```{r}
-state_counts <- table(data$state)
-plot_data <- data.frame(
-  state = names(state_counts),
-  num_encuestas = as.numeric(state_counts),
-  estimacion_mle = rep(estimador_mle, length(state_counts))
-)
+# read 
+# Obama era el candidato democrata --> votos para "democrat" don votos para Obama
+data2008 <- read.csv("data/2008ElectionResult.csv")
 
-# Graficar con ggplot2
-ggplot(plot_data, aes(x = state, y = num_encuestas)) +
-  geom_bar(stat = "identity", fill = "lightblue", alpha = 0.7) +
-  geom_line(aes(y = estimacion_mle * max(num_encuestas)), color = "red", size = 1) +
-  labs(x = "Estado", y = "Número de Encuestas / Estimación MLE") +
-  theme(axis.text.x = element_text(angle = 90))
+data2008_2eval <- data2008 %>%  filter(state != 'Alaska' & state != 'Hawaii' & state != 'DC')
+plot_data <- tibble(x_very_liberal = poll_data_2eval_by_state$prop_vl*100, 
+                    votes_4_Obama = data2008_2eval$vote_Obama_pct,
+                    states = data2008_2eval$state) 
+
+ggplot(plot_data, aes(x = x_very_liberal, y = votes_4_Obama)) +
+   geom_point(aes(color = states) ) +
+  labs(x = "% de 'very liberal'", y= "% votos para Obama" ) 
 
 ```
 
