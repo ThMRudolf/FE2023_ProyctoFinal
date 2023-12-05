@@ -303,7 +303,7 @@ crear_log_sigma <- function(x){
     desv_est = pars[1]
     # ve la ecuación del ejercicio anterior
     z <- x / desv_est
-    log_verosim <- -(log(desv_est) +  0.5 * mean(z^2))
+    log_verosim <- -2*(log(desv_est) +  0.5 * mean(z^2))
     log_verosim
   }  
   log_p
@@ -470,11 +470,11 @@ $\sigma = \sqrt{reps_boot$estimador_boot}$
     de las replicaciones bootstrap.
 
 ```{r}
-sigma <- sqrt(reps_boot$estimador_boot)
+sigma <- (reps_boot$estimador_boot)
 tau <- log(sigma)
 ee_tau = sd(tau)
 mean_tau = mean(tau)
-result_confidence_interval <- tibble(interval=c("2.5%", "97.5"),values=c(mean_tau-2*ee_tau, mean_tau+2*ee_tau)) 
+result_confidence_interval <- tibble(interval=c("2.5%", "97.5%"),values=c(mean_tau-2*ee_tau, mean_tau+2*ee_tau)) 
 result_confidence_interval %>% gt()
 # histogram plot
 hist_tbl <- tibble(tau = tau)
@@ -489,7 +489,7 @@ ggplot(hist_tbl, aes(x=tau) )+geom_histogram() +
     de $\tau$.
 
 ```{r}
-sigma_bay <- sqrt(dist_post_vari)
+sigma_bay <- (dist_post_vari)
 tau_bay <- log(sigma_bay)#*sigma_bay
 ee_tau_bay <- sd(tau_bay)
 mean_tau_bay <- mean(tau_bay)
@@ -522,24 +522,14 @@ poll_data <- foreign::read.dta("data/pew_research_center_june_elect_wknd_data.dt
 
 ```{r}
 set.seed(1234)
+set.seed(1234)
+# quitar los estados Alaska, Hawai, DC
+poll_data_2eval <- poll_data %>% filter(state != 'alaska' & state != 'hawaii' & state != 'dc')
 
-data <- data.frame(ideo = poll_data$ideo, state = poll_data$state)
-data <- na.omit(data)
+# prepare % per state, el valor de prop_vl es la max. versosimilitud
+poll_data_2eval_by_state <- poll_data_2eval %>% group_by(state) %>% summarise(prop_vl = mean(ideo == "very liberal", na.rm=TRUE), n = sum(!is.na(ideo)), k = sum(ideo == "very liberal", na.rm=TRUE))
+poll_data_2eval_by_state %>% gt()
 
-
-#Se contarán las columnas 
-n_total <- nrow(data)
-
-states_to_exclude <- c("alaska", "hawaii", "washington dc")
-
-filtro <- data[data$state %in% states_to_exclude | data$ideo == "very liberal", ]
-
-n_filtro <- nrow(data[!data$state %in% states_to_exclude & data$ideo == "very liberal", ])
-
-
-# Estimar la proporción usando el estimador de máxima verosimilitud
-estimador_mle <- n_filtro / n_total
-estimador_mle
 
 ```
 
@@ -549,44 +539,23 @@ estimador_mle
 
 ```{r}
 set.seed(1234)
-
-data <- data.frame(ideo = poll_data$ideo, state = poll_data$state)
-data <- na.omit(data)
-
-
-#Se contarán las columnas 
-n_total <- nrow(data)
-
-states_to_exclude <- c("alaska", "hawaii", "washington dc")
-
-filtro <- data[data$state %in% states_to_exclude | data$ideo == "very liberal", ]
-
-n_filtro <- nrow(data[!data$state %in% states_to_exclude & data$ideo == "very liberal", ])
-
-
-# Estimar la proporción usando el estimador de máxima verosimilitud
-estimador_mle <- n_filtro / n_total
-estimador_mle
-
-# graficar:
-state_counts <- table(data$state)
-plot_data <- data.frame(
-  state = names(state_counts),
-  num_encuestas = as.numeric(state_counts),
-  estimacion_mle = rep(estimador_mle, length(state_counts))
-)
 # quitar los estados Alaska, Hawai, DC
 poll_data_2eval <- poll_data %>% filter(state != 'alaska' & state != 'hawaii' & state != 'dc')
 
 # prepare % per state, el valor de prop_vl es la max. versosimilitud
 poll_data_2eval_by_state <- poll_data_2eval %>% group_by(state) %>% summarise(prop_vl = mean(ideo == "very liberal", na.rm=TRUE), n = sum(!is.na(ideo)), k = sum(ideo == "very liberal", na.rm=TRUE))
-poll_data_2eval_by_state %>% gt()
+
 
 # Graficar con ggplot2
 ggplot(poll_data_2eval_by_state, aes(x = n, y = prop_vl)) +
   geom_point(aes(color = state) )+
-  labs(x = "numero de preguntados", y = "procentaje de 'very liberal'" ) 
+  labs(x = "numero de encuestas", y = "procentaje de 'very liberal'" ) 
 ```
+
+*Observación:* Si el numero de encuestas es pequeño, el porcentage de
+las personas que se consideran "very liberal" varia mucho. Eso es debido
+a que hay poca información. Conforme se aumenta el numero de encuestas,
+el valor se estabiliza en un valor intermedio.
 
 -   Grafica en el eje *x* el porcentaje de votos que obtuvo Obama en la
     elección para cada estado y en el eje *y* la estimación de máxima
@@ -603,9 +572,9 @@ plot_data <- tibble(x_very_liberal = poll_data_2eval_by_state$prop_vl*100,
                     votes_4_Obama = data2008_2eval$vote_Obama_pct,
                     states = data2008_2eval$state) 
 
-ggplot(plot_data, aes(x = x_very_liberal, y = votes_4_Obama)) +
+ggplot(plot_data, aes(y = x_very_liberal, x = votes_4_Obama)) +
    geom_point(aes(color = states) ) +
-  labs(x = "% de 'very liberal'", y= "% votos para Obama" ) 
+  labs(y = "% de 'very liberal'", x= "% votos para Obama" ) 
 
 ```
 
