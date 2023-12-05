@@ -457,7 +457,7 @@ menos costoso en sentido de costo computacional.
 $\tau=log(\sigma)$, ¿cuál es el estimador de máxima verosimilitud?
 
 la maxima verosimilitud es : $\tau = \prod {log(\sigma)}$ con
-$\sigma = \sqrt{reps_boot$estimador_boot}$
+$\sigma = {estimador_{boot}}$
 
 -   con Utiliza bootstrap paramétrico para generar un intervalo de
     confianza del 95% para el parámetro $\tau$ y realiza un histograma
@@ -685,8 +685,9 @@ ajuste_idaho$summary()
 
 
 ```
-Si son propiados ya que rhat está cercano a 1 y las muestras son cercanas a 1,500 por lo que si podríamos utilizarlas para Idaho 
 
+Si son propiados ya que rhat está cercano a 1 y las muestras son
+cercanas a 1,500 por lo que si podríamos utilizarlas para Idaho
 
 ```{r}
 #Virginia
@@ -708,8 +709,8 @@ ajuste_virginia$cmdstan_diagnose()
 ajuste_virginia$summary()
 ```
 
-Si son propiados ya que rhat está cercano a 1 y las muestras son cercanas a 1,700 por lo que si podríamos utilizarlas para Idaho 
-
+Si son propiados ya que rhat está cercano a 1 y las muestras son
+cercanas a 1,700 por lo que si podríamos utilizarlas para Idaho
 
 -   Utiliza la media posterior de cada estado como estimador puntual y
     repite las gráficas del inciso anterior.
@@ -726,6 +727,7 @@ posterior_very_liberal %>%
   ggplot(aes(x = n, y = media_posterior, color = media_posterior)) +
   geom_point()
 ```
+
 ```{r}
 posterior_obama_very_liberal <- left_join(
   pob_obama,
