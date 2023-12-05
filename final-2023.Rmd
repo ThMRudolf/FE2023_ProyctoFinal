@@ -61,18 +61,19 @@ N = 310
 # successes in %
 p_hat <- 69/310
 # % of succeses in complete population
-p0 <- 0.29
+p0 <- 0.26
 # standard error
-ee_p0 <- sqrt(p0*(1-p0)/N)
+ee_pHat <- sqrt(p_hat*(1-p_hat)/N)
+ee_p0<- sqrt(p0*(1-p0)/N)
 # Wald test
-W <- (p_hat-p0)/ee_p0
+W <- (p_hat-p0)/ee_pHat
 # p value for one sided test
 p <- (1 - pnorm(abs(W)))
-result <- tibble(ssize = N, ee = ee_p0, 
+result <- tibble(ssize = N, ee = ee_pHat, 
                  p0 = p0, 
                  p_hat = p_hat,
                  wald_test = W, 
-                 p_value = p) %>% gt()
+                 p_value = p) %>% round(4)%>% gt() 
 (result)
 ```
 
@@ -100,14 +101,7 @@ p_hat = x/N
 log_verosim_4one <- function(p, n, N) {
   n*log(p)+(N-n)*log(1-p)
 }
-#log_verosim_multi <-function(p_vec, n_vec){
-#  N = sum(n_vec)
-#  log_verosim_multi <- 0
-#  for (k in 1:length(p_vec)){
-#    log_verosim_multi <- log_verosim_4one(p_vec[k],n_vec[k], N ) +
-#      log_verosim_multi
-#  }
-#  return (log_verosim_multi)
+
 l_p1_hat <- log_verosim_4one(p_hat[1], x[1], sum(x))
 l_p10 <- log_verosim_4one(p0[1], x[1], sum(x))
 
