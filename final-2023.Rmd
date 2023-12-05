@@ -522,14 +522,12 @@ poll_data <- foreign::read.dta("data/pew_research_center_june_elect_wknd_data.dt
 
 ```{r}
 set.seed(1234)
-set.seed(1234)
-# quitar los estados Alaska, Hawai, DC
-poll_data_2eval <- poll_data %>% filter(state != 'alaska' & state != 'hawaii' & state != 'dc')
+pob_very_liberal <- poll_data |>
+  filter(state %in% c("hawaii", "washington dc", "alaska") == FALSE) |>
+  group_by(state) |>
+  summarise(emv = mean(ideo == "very liberal", na.rm = TRUE))
 
-# prepare % per state, el valor de prop_vl es la max. versosimilitud
-poll_data_2eval_by_state <- poll_data_2eval %>% group_by(state) %>% summarise(prop_vl = mean(ideo == "very liberal", na.rm=TRUE), n = sum(!is.na(ideo)), k = sum(ideo == "very liberal", na.rm=TRUE))
-poll_data_2eval_by_state %>% gt()
-
+pob_very_liberal %>% gt()
 
 ```
 
@@ -539,17 +537,15 @@ poll_data_2eval_by_state %>% gt()
 
 ```{r}
 set.seed(1234)
-# quitar los estados Alaska, Hawai, DC
-poll_data_2eval <- poll_data %>% filter(state != 'alaska' & state != 'hawaii' & state != 'dc')
+pob_very_liberal <- poll_data |>
+  filter(state %in% c("hawaii", "washington dc", "alaska") == FALSE) |>
+  group_by(state) |>
+  summarise(emv = mean(ideo == "very liberal", na.rm = TRUE), n = sum(!is.na(ideo)))
 
-# prepare % per state, el valor de prop_vl es la max. versosimilitud
-poll_data_2eval_by_state <- poll_data_2eval %>% group_by(state) %>% summarise(prop_vl = mean(ideo == "very liberal", na.rm=TRUE), n = sum(!is.na(ideo)), k = sum(ideo == "very liberal", na.rm=TRUE))
-
-
-# Graficar con ggplot2
-ggplot(poll_data_2eval_by_state, aes(x = n, y = prop_vl)) +
-  geom_point(aes(color = state) )+
-  labs(x = "numero de encuestas", y = "procentaje de 'very liberal'" ) 
+pob_very_liberal %>%
+  ggplot(aes(x = n, y = emv, color = emv)) +
+  geom_point()+
+  labs(x="numero de encuestas", y="estimación max verosim (emv)")
 ```
 
 *Observación:* Si el numero de encuestas es pequeño, el porcentage de
@@ -564,17 +560,26 @@ el valor se estabiliza en un valor intermedio.
 
 ```{r}
 # read 
-# Obama era el candidato democrata --> votos para "democrat" don votos para Obama
-data2008 <- read.csv("data/2008ElectionResult.csv")
+poll_obama <- read_csv("data/2008ElectionResult.csv")
 
-data2008_2eval <- data2008 %>%  filter(state != 'Alaska' & state != 'Hawaii' & state != 'DC')
-plot_data <- tibble(x_very_liberal = poll_data_2eval_by_state$prop_vl*100, 
-                    votes_4_Obama = data2008_2eval$vote_Obama_pct,
-                    states = data2008_2eval$state) 
+pob_obama <- poll_obama %>%
+  mutate(state = tolower(state)) %>%
+  filter(!state %in% c("hawaii", "washington dc", "alaska")) %>%
+  group_by(state) %>%
+  summarise(vote_Obama_pct = mean(vote_Obama, na.rm = TRUE))
 
-ggplot(plot_data, aes(y = x_very_liberal, x = votes_4_Obama)) +
-   geom_point(aes(color = states) ) +
-  labs(y = "% de 'very liberal'", x= "% votos para Obama" ) 
+
+obama_very_liberal <- left_join(
+  pob_obama,
+  pob_very_liberal,
+  by = "state",
+  suffix = c("_obama", "_very_liberal")
+)
+
+obama_very_liberal %>%
+  ggplot(aes(x = vote_Obama_pct, y = emv, color = emv)) +
+  geom_point()+
+  labs(x="numero de votos para Obama", y="estimación max verosim (emv)")
 
 ```
 
@@ -585,50 +590,65 @@ ggplot(plot_data, aes(y = x_very_liberal, x = votes_4_Obama)) +
     $Beta(8,160)$.
 
 ```{r}
-# solo una vez.
-library(cmdstanr)
+pob_very_liberal <- poll_data |>
+  filter(state %in% c("hawaii", "washington dc", "alaska") == FALSE) |>
+  group_by(state) |>
+  summarise(emv = mean(ideo == "very liberal", na.rm = TRUE), n = sum(!is.na(ideo)), k=sum(ideo == "very liberal", na.rm = TRUE))
 
-install_cmdstan()
+
+# Parámetros de la distribución Beta
+a <- 8
+b <- 160
+
+# Datos observados de la distribución Binomial
+n <- pob_very_liberal$n
+k <- pob_very_liberal$k
+
+# Posterior
+a_post <- a + k
+b_post <- b + n - k
+
+posterior_samples <- rbeta(5000, a_post, b_post)
+
+beta_sims_inicial <- tibble(prop = rbeta(5000, a, b), dist = "inicial")
+beta_sims_posterior <- tibble(prop = rbeta(5000, a_post, b_post), dist = "posterior")
+bind_rows(beta_sims_inicial, beta_sims_posterior) %>% 
+  ggplot(aes(x = prop, fill = dist)) +
+    geom_histogram(alpha = 0.5, position = "identity") 
+
+# Ahora lo sacarmeos por estado
+
+posterior_samples_by_state <- data.frame(
+  state = rep(unique(pob_very_liberal$state), each = 5000),
+  posterior_samples = rbeta(length(unique(pob_very_liberal$state)) * 5000, a_post, b_post)
+)
+
+media_por_estado <- posterior_samples_by_state %>%
+  group_by(state) %>%
+  summarize(media_posterior = mean(posterior_samples))
+
 ```
 
 ```{r}
 
-library(rstan)
-
-####otro intento 
-datos <- list(
-  N = nrow(data),
-  y = as.integer(data$ideo == "very liberal"),
-  state = as.integer(factor(data$state)),
-  num_states = length(unique(data$state))
-)
-
-# Compilar el modelo
- modelo_stan <- stan_model("Stan.stan")
-# Ajustar el modelo
-ajuste <- sampling(modelo_stan, data = datos, chains = 4, iter = 2000)
-
-
-# Resumen de los resultados
-print(summary(ajuste))
 ```
 
 -   Simula de la distribución incial y describe.
 
 ```{r}
 # Parámetros de la distribución Beta inicial
-alpha_inicial <- 8
-beta_inicial <- 160
+set.seed(123)
 
-# Número de simulaciones
-num_simulaciones <- 1000
+a <- 8
+b <- 160
+inicial_samples <- rbeta(5000, a, b)
+quantile(inicial_samples, c(0.01, 0.05, 0.50, 0.90, 0.99)) |> round(3)
 
-# Simular de la distribución Beta inicial
-simulaciones_iniciales <- rbeta(num_simulaciones, alpha_inicial, beta_inicial)
-
-# Visualizar los resultados
-hist(simulaciones_iniciales, main = "Simulación de la Distribución Inicial (Beta(8,160))", 
-     xlab = "Valores Simulados", ylab = "Frecuencia", col = "skyblue", border = "black")
+ggplot() +
+  geom_histogram(aes(x = inicial_samples, y = ..density..), fill = "red", alpha = 0.7, bins = 30) +
+  labs(x = "Proporción", y = "Densidad") +
+  theme_minimal() +
+  ggtitle("Distribución Inicial Beta")
 
 ```
 
@@ -638,45 +658,91 @@ hist(simulaciones_iniciales, main = "Simulación de la Distribución Inicial (Be
     convergencia y describe tus observaciones ($\hat{R}$ y $ESS$).
 
 ```{r}
-datos_idaho_virginia <- list(
-  N = sum(data$state %in% c("idaho", "virginia")),
-  y = as.integer(data$ideo == "very liberal")[data$state %in% c("idaho", "virginia")],
-  state = as.integer(factor(data$state[data$state %in% c("idaho", "virginia")])),
-  num_states = 2
-)
+install.packages("cmdstanr", repos = c("https://mc-stan.org/r-packages/", getOption("repos")))
+library(cmdstanr)
+library(posterior)
+library(tidyverse)
 
-# Compilar el modelo específico para Idaho y Virginia
-modelo_stan_idaho_virginia <- stan_model("Stan.stan")
-
-# Ajustar el modelo
-ajuste_idaho_virginia <- sampling(modelo_stan_idaho_virginia, data = datos_idaho_virginia, chains = 4, iter = 2000)
-
-# Resumen de los resultados
-print(summary(ajuste_idaho_virginia))
+archivo_stan <- file.path("Stan.stan")
+# compilar
+mod <- cmdstan_model(archivo_stan)
+mod
 
 ```
+
+```{r}
+#Idaho
+datos_idaho <- pob_very_liberal %>% filter(state == "idaho")
+
+# Datos 
+datos_lista_idaho <- list(n = datos_idaho$n, y = datos_idaho$k)
+
+# Ejecutar el modelo con los datos de Idaho
+ajuste_idaho <- mod$sample(
+  data = datos_lista_idaho,
+  seed = 123,
+  chains = 4,
+  refresh = 500
+)
+
+ajuste_idaho$cmdstan_diagnose()
+
+ajuste_idaho$summary()
+
+
+```
+Si son propiados ya que rhat está cercano a 1 y las muestras son cercanas a 1,500 por lo que si podríamos utilizarlas para Idaho 
+
+
+```{r}
+#Virginia
+datos_virginia <- pob_very_liberal %>% filter(state == "virginia")
+
+# Datos 
+datos_lista_virginia <- list(n = datos_virginia$n, y = datos_virginia$k)
+
+# Ejecutar el modelo con los datos de Virginia
+ajuste_virginia <- mod$sample(
+  data = datos_lista_virginia,
+  seed = 123,
+  chains = 4,
+  refresh = 500
+)
+
+ajuste_virginia$cmdstan_diagnose()
+
+ajuste_virginia$summary()
+```
+
+Si son propiados ya que rhat está cercano a 1 y las muestras son cercanas a 1,700 por lo que si podríamos utilizarlas para Idaho 
+
 
 -   Utiliza la media posterior de cada estado como estimador puntual y
     repite las gráficas del inciso anterior.
 
 ```{r}
-extracted_samples <- as.array(ajuste_idaho_virginia)
+posterior_very_liberal <- left_join(
+  media_por_estado,
+  pob_very_liberal,
+  by = "state",
+  suffix = c("media_posterior", "very_liberal")
+)
 
-# Obtener las medias posteriores para Idaho y Virginia
-media_posterior_idaho <- mean(extracted_samples[, , 1])
-media_posterior_virginia <- mean(extracted_samples[, , 2])
+posterior_very_liberal %>%
+  ggplot(aes(x = n, y = media_posterior, color = media_posterior)) +
+  geom_point()
+```
+```{r}
+posterior_obama_very_liberal <- left_join(
+  pob_obama,
+  posterior_very_liberal,
+  by = "state",
+  suffix = c("_obama", "_very_liberal")
+)
 
-# Imprimir las medias posteriores
-media_posterior_idaho
-media_posterior_virginia
-
-# Visualizar las distribuciones posteriores
-
-df_medias <- data.frame(Idaho = media_posterior_idaho, Virginia = media_posterior_virginia)
-
-# Graficar las medias posteriores
-barplot(t(df_medias), beside = TRUE, col = c("skyblue", "lightcoral"), names.arg = c("Idaho", "Virginia"), ylim = c(0, 0.1), ylab = "Media Posterior", main = "Medias Posteriores para Idaho y Virginia")
-
+posterior_obama_very_liberal %>%
+  ggplot(aes(x = vote_Obama_pct, y = media_posterior, color = media_posterior)) +
+  geom_point()
 ```
 
 **Nota:** En problemas como este, donde estamos estimando un parámetro
